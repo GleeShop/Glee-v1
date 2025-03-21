@@ -16,15 +16,16 @@ console.log("Verificando db =>", db);
 // Variables globales
 let products = [];
 let selectedProductId = null;
+let dtInstanceProducts = null; // Instancia de DataTable para la tabla de productos
 
 // Se leen los datos del usuario desde localStorage
-const loggedUser      = localStorage.getItem("loggedUser") || "";
-const loggedUserRole  = localStorage.getItem("loggedUserRole") || "";
+const loggedUser = localStorage.getItem("loggedUser") || "";
+const loggedUserRole = (localStorage.getItem("loggedUserRole") || "").toLowerCase();
 const loggedUserStore = localStorage.getItem("loggedUserStore") || "DefaultStore";
 
 // Definición de permisos según rol:
 // - Admin: todos los botones.
-// - Usuarios con tienda: solo el botón de Crear Producto.
+// - Usuarios con tienda: solo se permite crear producto.
 let userPermissions = {
   crearProducto: false,
   editarProducto: false,
@@ -33,7 +34,7 @@ let userPermissions = {
   cargarTexto: false
 };
 
-if (loggedUserRole.toLowerCase() === "admin") {
+if (loggedUserRole === "admin") {
   userPermissions = {
     crearProducto: true,
     editarProducto: true,
@@ -42,7 +43,6 @@ if (loggedUserRole.toLowerCase() === "admin") {
     cargarTexto: true
   };
 } else {
-  // Para usuarios con tienda, solo se habilita "crearProducto"
   userPermissions = {
     crearProducto: true,
     editarProducto: false,
@@ -55,14 +55,14 @@ console.log("Permisos de productos:", userPermissions);
 
 // Variable para el filtrado de tienda
 let currentStore = "";
-
-// Configuración según rol: Si es admin se muestra el filtro de tienda
-if (loggedUserRole.toLowerCase() === "admin") {
-  document.getElementById("adminStoreFilter").style.display = "block";
-  document.getElementById("inventoryTitle").textContent = "Inventario: Stock Total";
-} else {
+// Si el usuario no es admin, se fija la tienda del usuario
+if (loggedUserRole !== "admin") {
   currentStore = loggedUserStore;
   document.getElementById("inventoryTitle").textContent = `Inventario de: ${currentStore}`;
+} else {
+  // Para admin se muestra el filtro de tienda
+  document.getElementById("adminStoreFilter").style.display = "block";
+  document.getElementById("inventoryTitle").textContent = "Inventario: Stock Total";
 }
 
 // Función para cargar tiendas en el select (solo para admin)
@@ -84,7 +84,7 @@ async function loadStoreFilter() {
   }
 }
 
-if (loggedUserRole.toLowerCase() === "admin") {
+if (loggedUserRole === "admin") {
   document.addEventListener("DOMContentLoaded", () => {
     loadStoreFilter();
     document.getElementById("storeSelect").addEventListener("change", function () {
@@ -92,7 +92,8 @@ if (loggedUserRole.toLowerCase() === "admin") {
       document.getElementById("inventoryTitle").textContent = currentStore
         ? `Inventario de: ${currentStore}`
         : "Inventario: Stock Total";
-      listenProducts(); // Actualiza la escucha de productos según el filtro
+      // Al cambiar la tienda, se vuelve a renderizar la tabla (sin filtrar filas)
+      renderProducts();
     });
   });
 }
@@ -118,30 +119,37 @@ function listenProducts() {
   );
 }
 
-// Función para renderizar productos filtrados
+// Función para renderizar productos
 function renderProducts() {
-  const searchQuery = document.getElementById("searchInput").value.trim().toLowerCase();
   const tbody = document.getElementById("productsBody");
   tbody.innerHTML = "";
+  
+  // Para usuarios con tienda (no admin), se muestran solo productos que tengan stock > 0 en su tienda.
+  // Para admin se muestran TODOS los productos, sin filtrar filas.
   const filteredProducts = products.filter(prod => {
-    const codigo = prod.codigo?.toLowerCase() || "";
-    const descripcion = prod.descripcion?.toLowerCase() || "";
-    const talla = prod.talla?.toLowerCase() || "";
-    return codigo.includes(searchQuery) || descripcion.includes(searchQuery) || talla.includes(searchQuery);
+    if (loggedUserRole !== "admin") {
+      const storeStock = prod.stock ? Number(prod.stock[currentStore] || 0) : 0;
+      return storeStock > 0;
+    }
+    return true;
   });
 
   if (filteredProducts.length === 0) {
     tbody.innerHTML =
-      "<tr><td colspan='5' class='text-center'>No hay productos disponibles</td></tr>";
+      "<tr><td colspan='6' class='text-center'>No hay productos disponibles</td></tr>";
+    if ($.fn.DataTable.isDataTable("#productsTable")) {
+      $("#productsTable").DataTable().destroy();
+    }
     return;
   }
+  
   filteredProducts.forEach((prod) => {
     const tr = document.createElement("tr");
     const displayedStock = getDisplayedStock(prod);
     tr.innerHTML = `
       <td>${prod.codigo}</td>
       <td>${prod.descripcion}</td>
-      <td>${prod.color}</td>
+      <td>${prod.color || ""}</td>
       <td>${prod.talla || ""}</td>
       <td>Q ${parseFloat(prod.precio).toFixed(2)}</td>
       <td>${displayedStock}</td>
@@ -155,6 +163,24 @@ function renderProducts() {
     });
     tbody.appendChild(tr);
   });
+  
+  // Inicializar DataTable para la tabla de productos con paginación personalizada:
+  // Opciones: 5, 10, 15, 20, 25, 30; iniciando en 5
+  if ($.fn.DataTable.isDataTable("#productsTable")) {
+    $("#productsTable").DataTable().destroy();
+  }
+  dtInstanceProducts = $("#productsTable").DataTable({
+    pageLength: 5,
+    lengthMenu: [[5, 10, 15, 20, 25, 30], [5, 10, 15, 20, 25, 30]],
+    language: {
+      search: "Buscar:",
+      lengthMenu: "Mostrar _MENU_ registros",
+      zeroRecords: "No se encontraron resultados",
+      info: "Mostrando página _PAGE_ de _PAGES_",
+      infoEmpty: "No hay registros disponibles",
+      infoFiltered: "(filtrado de _MAX_ registros totales)"
+    }
+  });
 }
 
 // Calcula el stock a mostrar según rol y tienda
@@ -162,33 +188,40 @@ function getDisplayedStock(product, store = currentStore) {
   if (!product.stock || typeof product.stock !== "object") {
     return product.stock || 0;
   }
-  if (loggedUserRole.toLowerCase() === "admin" && !store) {
-    return Object.values(product.stock).reduce((sum, val) => sum + Number(val), 0);
+  if (loggedUserRole === "admin") {
+    if (!store) {
+      // Sin filtro, se muestra la suma total de todos los stocks
+      return Object.values(product.stock).reduce((sum, val) => sum + Number(val), 0);
+    } else {
+      // Con filtro, se muestra solo el stock de la tienda seleccionada
+      return product.stock[store] || 0;
+    }
   }
-  if (loggedUserRole.toLowerCase() === "admin" && store) {
-    return product.stock[store] || 0;
-  }
-  return product.stock[store] || 0;
+  // Para usuarios no admin, currentStore ya tiene la tienda asignada
+  return product.stock[currentStore] || 0;
 }
 
 /*********************************************
  * FUNCIONES CRUD PARA PRODUCTOS
  *********************************************/
 async function crearProducto() {
+  // Se solicita el color junto a los demás campos
   const { value: formValues } = await Swal.fire({
     title: "Crear Producto",
     html: `
       <input id="swal-input1" class="swal2-input" placeholder="Código">
       <input id="swal-input2" class="swal2-input" placeholder="Descripción">
-      <input id="swal-input3" class="swal2-input" placeholder="Talla (opcional)">
-      <input id="swal-input4" class="swal2-input" placeholder="Precio" type="number" min="0.01" step="0.01">
+      <input id="swal-input3" class="swal2-input" placeholder="Color">
+      <input id="swal-input4" class="swal2-input" placeholder="Talla (opcional)">
+      <input id="swal-input5" class="swal2-input" placeholder="Precio" type="number" min="0.01" step="0.01">
     `,
     focusConfirm: false,
     preConfirm: () => {
       const codigo = document.getElementById("swal-input1").value.trim();
       const descripcion = document.getElementById("swal-input2").value.trim();
-      const talla = document.getElementById("swal-input3").value.trim();
-      const precio = parseFloat(document.getElementById("swal-input4").value);
+      const color = document.getElementById("swal-input3").value.trim();
+      const talla = document.getElementById("swal-input4").value.trim();
+      const precio = parseFloat(document.getElementById("swal-input5").value);
       if (!codigo) {
         Swal.showValidationMessage("El código es obligatorio");
         return;
@@ -197,21 +230,31 @@ async function crearProducto() {
         Swal.showValidationMessage("La descripción es obligatoria");
         return;
       }
+      if (!color) {
+        Swal.showValidationMessage("El color es obligatorio");
+        return;
+      }
       if (isNaN(precio) || precio <= 0) {
         Swal.showValidationMessage("El precio debe ser mayor a 0");
         return;
       }
-      return { codigo, descripcion, talla, precio };
+      return { codigo, descripcion, color, talla, precio };
     }
   });
   if (!formValues) return;
   try {
+    // Al crear producto, si hay un filtro de tienda (currentStore), se asigna stock para esa tienda (inicialmente 0)
+    let initialStock = {};
+    if (currentStore) {
+      initialStock[currentStore] = 0;
+    }
     const newProduct = {
       codigo: formValues.codigo,
       descripcion: formValues.descripcion,
+      color: formValues.color,
       talla: formValues.talla,
       precio: formValues.precio,
-      stock: {},
+      stock: initialStock,
       createdAt: new Date().toISOString()
     };
     await addDoc(collection(db, "productos"), newProduct);
@@ -236,15 +279,17 @@ async function editarProducto() {
     html: `
       <input id="swal-input1" class="swal2-input" placeholder="Código" value="${product.codigo}">
       <input id="swal-input2" class="swal2-input" placeholder="Descripción" value="${product.descripcion}">
-      <input id="swal-input3" class="swal2-input" placeholder="Talla (opcional)" value="${product.talla || ''}">
-      <input id="swal-input4" class="swal2-input" placeholder="Precio" type="number" min="0.01" step="0.01" value="${product.precio}">
+      <input id="swal-input3" class="swal2-input" placeholder="Color" value="${product.color || ''}">
+      <input id="swal-input4" class="swal2-input" placeholder="Talla (opcional)" value="${product.talla || ''}">
+      <input id="swal-input5" class="swal2-input" placeholder="Precio" type="number" min="0.01" step="0.01" value="${product.precio}">
     `,
     focusConfirm: false,
     preConfirm: () => {
       const codigo = document.getElementById("swal-input1").value.trim();
       const descripcion = document.getElementById("swal-input2").value.trim();
-      const talla = document.getElementById("swal-input3").value.trim();
-      const precio = parseFloat(document.getElementById("swal-input4").value);
+      const color = document.getElementById("swal-input3").value.trim();
+      const talla = document.getElementById("swal-input4").value.trim();
+      const precio = parseFloat(document.getElementById("swal-input5").value);
       if (!codigo) {
         Swal.showValidationMessage("El código es obligatorio");
         return;
@@ -253,11 +298,15 @@ async function editarProducto() {
         Swal.showValidationMessage("La descripción es obligatoria");
         return;
       }
+      if (!color) {
+        Swal.showValidationMessage("El color es obligatorio");
+        return;
+      }
       if (isNaN(precio) || precio <= 0) {
         Swal.showValidationMessage("El precio debe ser mayor a 0");
         return;
       }
-      return { codigo, descripcion, talla, precio };
+      return { codigo, descripcion, color, talla, precio };
     }
   });
   if (!formValues) return;
@@ -265,6 +314,7 @@ async function editarProducto() {
     const updateData = {
       codigo: formValues.codigo,
       descripcion: formValues.descripcion,
+      color: formValues.color,
       talla: formValues.talla,
       precio: formValues.precio
     };
@@ -313,7 +363,7 @@ async function modificarStock() {
     Swal.fire("Error", "Producto no encontrado", "error");
     return;
   }
-  if (loggedUserRole.toLowerCase() === "admin" && !currentStore) {
+  if (loggedUserRole === "admin" && !currentStore) {
     Swal.fire(
       "Tienda no seleccionada",
       "Debes elegir una tienda en el filtro para modificar stock",
@@ -346,6 +396,8 @@ async function modificarStock() {
       updatedStock[storeKey] = Number(newStock);
       await updateDoc(doc(db, "productos", selectedProductId), { stock: updatedStock });
       Swal.fire("Stock actualizado", "El stock fue actualizado correctamente", "success");
+      // Actualizamos la vista llamando a listenProducts para refrescar los datos
+      listenProducts();
     } catch (error) {
       Swal.fire("Error", "No se pudo actualizar el stock: " + error.message, "error");
     }
@@ -356,10 +408,16 @@ function getCurrentStock(product, store = currentStore) {
   if (!product.stock || typeof product.stock !== "object") {
     return product.stock || 0;
   }
-  if (loggedUserRole.toLowerCase() === "admin" && !store) {
-    return 0;
+  if (loggedUserRole === "admin") {
+    if (!store) {
+      // Sin filtro, se muestra la suma total de todos los stocks
+      return Object.values(product.stock).reduce((sum, val) => sum + Number(val), 0);
+    } else {
+      // Con filtro, se muestra solo el stock de la tienda seleccionada
+      return product.stock[store] || 0;
+    }
   }
-  return product.stock[store] || 0;
+  return product.stock[currentStore] || 0;
 }
 
 /*********************************************
@@ -381,7 +439,6 @@ async function cargarConCadenaTexto() {
   });
   if (!textData) return;
 
-  // Se asume que cada línea es un producto separado por salto de línea
   const lines = textData.split("\n").filter(line => line.trim() !== "");
   let productosNuevos = [];
   lines.forEach(line => {
@@ -396,10 +453,8 @@ async function cargarConCadenaTexto() {
     const precio = parseFloat(parts[3]);
     const color = parts[4];
     if (!codigo || !descripcion || isNaN(precio) || precio <= 0 || !color) {
-      // Si algún dato no es válido, se omite la línea
       return;
     }
-    // Stock es opcional; si se incluye, se asigna al inventario de la tienda del usuario
     let stock = {};
     if (parts.length >= 6) {
       const s = parseInt(parts[5]);
@@ -410,7 +465,7 @@ async function cargarConCadenaTexto() {
       descripcion,
       talla,
       precio,
-      color, // Se agrega el color
+      color,
       stock,
       createdAt: new Date().toISOString()
     };
@@ -438,9 +493,8 @@ async function cargarConCadenaTexto() {
  *********************************************/
 document.addEventListener("DOMContentLoaded", () => {
   listenProducts();
-
-  // Filtro de búsqueda
-  document.getElementById("searchInput").addEventListener("input", renderProducts);
+  // Se remueve el listener del buscador custom ya que se usará el buscador de DataTables.
+  // document.getElementById("searchInput").addEventListener("input", renderProducts);
 
   const btnCrearProducto = document.getElementById("btnCrearProducto");
   const btnEditarProducto = document.getElementById("btnEditarProducto");
@@ -448,8 +502,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnModificarStock = document.getElementById("btnModificarStock");
   const btnCargarTexto = document.getElementById("btnCargarTexto");
 
-  // Solo admin tiene todos los botones; usuarios con tienda solo verán "Crear Producto"
-  if (loggedUserRole.toLowerCase() === "admin") {
+  if (loggedUserRole === "admin") {
     btnCrearProducto.style.display = "inline-block";
     btnEditarProducto.style.display = "inline-block";
     btnEliminarProducto.style.display = "inline-block";
@@ -461,7 +514,6 @@ document.addEventListener("DOMContentLoaded", () => {
     btnModificarStock.addEventListener("click", modificarStock);
     btnCargarTexto.addEventListener("click", cargarConCadenaTexto);
   } else {
-    // Para usuarios con tienda, solo se muestra "Crear Producto"
     btnCrearProducto.style.display = "inline-block";
     btnEditarProducto.style.display = "none";
     btnEliminarProducto.style.display = "none";
@@ -470,5 +522,3 @@ document.addEventListener("DOMContentLoaded", () => {
     btnCrearProducto.addEventListener("click", crearProducto);
   }
 });
-
-// Nota: Implementa la función "cargarConCadenaTexto" según tus necesidades para la carga masiva.
