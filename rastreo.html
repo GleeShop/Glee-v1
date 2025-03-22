@@ -1,20 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Historial de Guías</title>
-
     <!-- Bootstrap CSS -->
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <!-- DataTables CSS -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css"
-    />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" />
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- jQuery (requerido por DataTables) -->
@@ -22,146 +15,50 @@
     <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
-    <!-- jsPDF para generar PDF (si se requiere) -->
+    <!-- jsPDF para generar PDF (si lo necesitas) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <!-- html2canvas para convertir HTML a imagen (si se requiere) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- Estilos personalizados -->
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <div class="container">
-      <h1 class="mb-4 text-center">Historial de Guías</h1>
-
-      <!-- Filtro por fecha de generación -->
-      <div class="row mb-3 justify-content-center">
+      <h1 class="mb-4">Historial de Guías</h1>
+      <!-- Filtro por fecha (opcional) -->
+      <div class="row mb-3">
         <div class="col-md-4">
-          <label for="filtroFecha" class="form-label"
-            >Filtrar por fecha de generación:</label
-          >
-          <input type="date" id="filtroFecha" class="form-control" />
+          <label for="filtroFecha" class="form-label">Filtrar por fecha:</label>
+          <input type="date" id="filtroFecha" class="form-control">
         </div>
       </div>
-
-      <!-- Botón para Ingresar Guías -->
-      <div class="text-center mb-3">
-        <button class="btn btn-primary" id="btnIngresarGuia">
-          Ingresar Guías
-        </button>
-      </div>
-
-      <!-- Tabla de guías -->
+      <!-- Tabla de ventas -->
       <div class="table-responsive">
-        <table class="table table-striped" id="tablaGuias">
-          <thead class="table-dark">
+        <table id="ventasTable" class="table table-striped table-bordered">
+          <thead>
             <tr>
               <th>Número de Guía</th>
+              <th>Id Venta</th>
+              <th>Fecha</th>
+              <th>Cliente</th>
+              <th>Vendedor</th>
+              <th>Monto Total</th>
+              <th>Método de Pago</th>
               <th>Estado</th>
-              <th>Fecha de generación</th>
-              <th>Fecha de uso</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody id="tablaGuiasBody">
-            <!-- Se cargarán los datos dinámicamente -->
+            <!-- Aquí se cargarán los datos -->
           </tbody>
         </table>
-      </div>
-
-      <p
-        id="mensajeSinGuias"
-        class="text-center text-muted mt-3"
-        style="display: none;"
-      >
-        No hay guías disponibles.
-      </p>
-    </div>
-
-    <!-- Modal para Ingresar Guías -->
-    <div
-      class="modal fade"
-      id="modalIngresarGuia"
-      tabindex="-1"
-      aria-labelledby="modalIngresarGuiaLabel"
-      aria-hidden="true"
-    >
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="modalIngresarGuiaLabel">
-              Ingresar Nueva Guía
-            </h5>
-            <button
-              type="button"
-              class="btn-close"
-              data-bs-dismiss="modal"
-              aria-label="Cerrar"
-            ></button>
-          </div>
-          <div class="modal-body">
-            <form id="formGuiaModal">
-              <div class="mb-2">
-                <label for="numeroGuia" class="form-label">Número de Guía</label>
-                <input
-                  type="text"
-                  id="numeroGuia"
-                  class="form-control"
-                  required
-                />
-              </div>
-              <div class="mb-2">
-                <label for="fechaGeneracion" class="form-label"
-                  >Fecha de generación</label
-                >
-                <input
-                  type="date"
-                  id="fechaGeneracion"
-                  class="form-control"
-                  required
-                />
-              </div>
-              <div class="mb-2">
-                <label for="cliente" class="form-label">Cliente</label>
-                <input
-                  type="text"
-                  id="cliente"
-                  class="form-control"
-                  required
-                />
-              </div>
-              <div class="mb-2">
-                <label for="direccion" class="form-label">Dirección</label>
-                <input
-                  type="text"
-                  id="direccion"
-                  class="form-control"
-                  required
-                />
-              </div>
-              <div class="mb-2">
-                <label for="codigoAutorizacion" class="form-label"
-                  >Código de Autorización</label
-                >
-                <input
-                  type="text"
-                  id="codigoAutorizacion"
-                  class="form-control"
-                  required
-                />
-              </div>
-              <!-- El estado se fija automáticamente a "Pendiente" -->
-              <input type="hidden" id="estado" value="Pendiente" />
-              <button type="submit" class="btn btn-success w-100">
-                Agregar Guía
-              </button>
-            </form>
-          </div>
-        </div>
+        <p id="mensajeSinGuias" style="display:none;" class="text-center text-muted">
+          No hay ventas disponibles.
+        </p>
       </div>
     </div>
-
-    <!-- Bootstrap Bundle JS -->
+  
+    <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Script funcional -->
     <script type="module" src="rastreo.js"></script>
   </body>
 </html>

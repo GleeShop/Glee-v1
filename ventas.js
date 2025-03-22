@@ -406,7 +406,7 @@ export async function procesarVenta() {
       }
     });
     formData = result.value;
-  } else {
+  } if (saleCategory === "online") {
     const result = await Swal.fire({
       title: "Procesar Venta - En Línea",
       html: `
@@ -417,8 +417,10 @@ export async function procesarVenta() {
         <input type="text" id="clienteDireccion" class="swal2-input" placeholder="Dirección (opc)">
         <hr>
         <h4>Detalle de la Venta</h4>
-        ${resumenHtml}
-        <input type="text" id="comprobantePago" class="swal2-input" placeholder="Comprobante de Pago">
+        ${cart.map(item => `<p>${item.producto} (${item.producto_codigo}) x ${item.cantidad} = Q${(item.cantidad*item.precio).toFixed(2)}</p>`).join('')}
+        <h4>Total Venta: Q${(parseFloat(document.getElementById("totalVenta").textContent) || 0).toFixed(2)}</h4>
+        <input type="text" id="guia" class="swal2-input" placeholder="Guía" required>
+        <input type="text" id="comprobantePago" class="swal2-input" placeholder="Comprobante de Pago" required>
         <textarea id="comentarioVenta" class="swal2-textarea" placeholder="Comentario (opcional)"></textarea>
       `,
       focusConfirm: false,
@@ -438,6 +440,11 @@ export async function procesarVenta() {
           Swal.showValidationMessage("El comprobante de pago es obligatorio");
           return;
         }
+        const guia = document.getElementById("guia").value.trim();
+        if (!guia) {
+          Swal.showValidationMessage("El campo Guía es obligatorio");
+          return;
+        }
         let clienteData = {
           nombre,
           telefono,
@@ -449,7 +456,7 @@ export async function procesarVenta() {
           comprobante,
           comentario: document.getElementById("comentarioVenta").value.trim()
         };
-        return { clienteData, pagoObj };
+        return { clienteData, pagoObj, guia };
       }
     });
     formData = result.value;
@@ -469,13 +476,15 @@ export async function procesarVenta() {
       precio_unitario: item.precio,
       subtotal: item.cantidad * item.precio
     })),
-    total: totalVenta,
+    total: parseFloat(document.getElementById("totalVenta").textContent) || 0,
     metodo_pago: formData.pagoObj.metodo,
     cambio: formData.pagoObj.cambio || 0,
     usuario: usuarioActual,
     idApertura: window.idAperturaActivo, // Se asocia a la apertura actual
-    empleadoNombre: empNombre,
-    numeroTransferencia: formData.pagoObj.numeroTransferencia || ""
+    empleadoNombre: formData.empNombre || "", // para venta física
+    numeroTransferencia: formData.pagoObj.numeroTransferencia || "",
+    // Agregar el campo "guia": para venta en línea tendrá el valor ingresado; para venta física se deja vacío.
+    guia: formData.guia || ""
   };
 
   console.log("Venta a registrar:", venta);
@@ -508,6 +517,7 @@ export async function procesarVenta() {
              </button>`,
       icon: "success"
     });
+  
     cart = [];
     renderCart();
   } catch (error) {
@@ -559,3 +569,5 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   listenProducts();
 });
+
+window.procesarVenta = procesarVenta;

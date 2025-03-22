@@ -12,7 +12,7 @@ import {
   limit
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
-import { formatDate, parseDate } from "./ventas.js";
+import { formatDate, parseDate } from "ventas.js";
 
 export async function getNextHistorialCierre() {
   try {

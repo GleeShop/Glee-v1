@@ -188,16 +188,17 @@ function getDisplayedStock(product, store = currentStore) {
   if (!product.stock || typeof product.stock !== "object") {
     return product.stock || 0;
   }
-  if (loggedUserRole === "admin") {
-    if (!store) {
-      // Sin filtro, se muestra la suma total de todos los stocks
-      return Object.values(product.stock).reduce((sum, val) => sum + Number(val), 0);
-    } else {
-      // Con filtro, se muestra solo el stock de la tienda seleccionada
-      return product.stock[store] || 0;
-    }
+  
+  // Si se ha seleccionado una tienda, mostramos el stock de esa tienda
+  if (store) {
+    return product.stock[store] || 0;
   }
-  // Para usuarios no admin, currentStore ya tiene la tienda asignada
+  
+  // Si no se especifica tienda, admin ve stock total y otros el stock de currentStore
+  if (loggedUserRole === "admin") {
+    return Object.values(product.stock).reduce((sum, val) => sum + Number(val), 0);
+  }
+  
   return product.stock[currentStore] || 0;
 }
 
