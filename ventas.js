@@ -316,12 +316,12 @@ export async function procesarVenta() {
   let resumenHtml = "";
   cart.forEach(item => {
     let subt = item.cantidad * item.precio;
-    resumenHtml += `
+    resumenHtml += ` 
       <p><strong>${item.producto}</strong> (${item.producto_codigo})<br>
          Cant: ${item.cantidad} x Q${item.precio.toFixed(2)} = Q${subt.toFixed(2)}</p>
     `;
   });
-  resumenHtml += `<h4>Venta Total: Q${totalVenta.toFixed(2)}</h4>`;
+  resumenHtml += '<h4>Venta Total: Q' + totalVenta.toFixed(2) + '</h4>';
 
   let formData;
   if (saleCategory === "fisico") {
@@ -563,7 +563,7 @@ window.descargarComprobante = function(venta) {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const storeSelect = document.getElementById("storeSelect");
+  const storeSelect = document.getElementById("storeSelect");a
   if (storeSelect) {
     storeSelect.addEventListener("change", renderProducts);
   }

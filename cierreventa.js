@@ -12,7 +12,7 @@ import {
   limit
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
-import { formatDate, parseDate } from "ventas.js";
+import { formatDate, parseDate } from "./ventas.js";  // Asegúrate de que la ruta es correcta
 
 export async function getNextHistorialCierre() {
   try {
@@ -152,10 +152,6 @@ export async function cerrarCaja() {
   });
 }
 
-/**
- * Función para generar el reporte de cierre en formato HTML.
- * Se muestran los datos relevantes y la tabla de ventas.
- */
 function generarReporteCierreHTML(ventasDetalle, cierreData) {
   let montoApertura = Number(cierreData.montoApertura) || 0;
   let totalEfectivo = Number(cierreData.totalEfectivo || 0);
@@ -266,23 +262,42 @@ function generarReporteCierreHTML(ventasDetalle, cierreData) {
   `;
 }
 
-window.descargarReporteCierre = function(cierreData, ventasDetalle) {
-  const reporteHtml = generarReporteCierreHTML(ventasDetalle, cierreData);
-  let container = document.createElement("div");
-  container.innerHTML = reporteHtml;
-  container.style.position = "absolute";
-  container.style.left = "-9999px";
-  document.body.appendChild(container);
-  html2canvas(container).then(canvas => {
-    let dataURL = canvas.toDataURL("image/png");
-    let a = document.createElement("a");
-    a.href = dataURL;
-    a.download = `reporte-cierre-${cierreData.idhistorialCierre}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    document.body.removeChild(container);
-  });
+// Exponer funciones globalmente para uso en HTML u otros módulos
+window.procesarVenta = procesarVenta;
+window.agregarProductoAlCarrito = agregarProductoAlCarrito;
+window.renderCart = renderCart;
+window.listenProducts = listenProducts;
+
+// Escuchar los cambios de productos
+document.addEventListener("DOMContentLoaded", () => {
+  listenProducts();
+});
+
+// Función para descargar el comprobante de venta (descarga como HTML)
+window.descargarComprobante = function (venta) {
+  let comprobanteHtml = `
+    <h2>Comprobante de Venta</h2>
+    <p><strong>ID Venta:</strong> ${venta.idVenta}</p>
+    <p><strong>Fecha:</strong> ${new Date(venta.fecha).toLocaleString()}</p>
+    <p><strong>Empleado:</strong> ${venta.empleadoNombre}</p>
+    <p><strong>Cliente:</strong> ${venta.cliente.nombre}</p>
+    <hr>
+    <h3>Detalle de Productos</h3>
+    <ul>
+      ${venta.productos.map(prod => `<li>${prod.producto_nombre} (${prod.producto_codigo}) - Cant: ${prod.cantidad} x Q${prod.precio_unitario.toFixed(2)} = Q${prod.subtotal.toFixed(2)}</li>`).join('')}
+    </ul>
+    <hr>
+    <p><strong>Total:</strong> Q${venta.total.toFixed(2)}</p>
+  `;
+  let blob = new Blob([comprobanteHtml], { type: "text/html" });
+  let url = URL.createObjectURL(blob);
+  let a = document.createElement("a");
+  a.href = url;
+  a.download = `comprobante-venta-${venta.idVenta}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 };
 
+// Asigna la función cerrarCaja al objeto global
 window.cerrarCaja = cerrarCaja;

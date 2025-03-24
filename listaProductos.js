@@ -1,3 +1,4 @@
+
 import { db } from "./firebase-config.js"; // Ajusta la ruta según tu proyecto
 import {
   collection,
